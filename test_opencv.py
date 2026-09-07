@@ -144,11 +144,7 @@ def rander(image, triangle, f, depth_map):
     MinX = max(min(A[0], B[0], C[0]), 0)
     MaxY = min(max(A[1], B[1], C[1]), HEIGHT)
     MinY = max(min(A[1], B[1], C[1]), 0)
-    
-    
-    
-    
-    
+
     area = cross(A, B, C)
     if(area == 0):
         return
@@ -163,13 +159,15 @@ def rander(image, triangle, f, depth_map):
     ys_B1 = (ys - B[1])
     ys_C1 = (ys - C[1])
 
-
+    # X, Y = np.meshgrid(xs, ys)
 
     # 计算三个edge function
     w1 = ((B[0] - A[0]) * ys_A1[:, None] - (B[1] - A[1]) * xs_A0[None,:])
     w2 = ((C[0] - B[0]) * ys_B1[:, None] - (C[1] - B[1]) * xs_B0[None,:])
     w3 = ((A[0] - C[0]) * ys_C1[:, None] - (A[1] - C[1]) * xs_C0[None,:])
-
+    # w1 = ((B[0] - A[0]) * (Y - A[1]) - (B[1] - A[1]) * (X - A[0]))
+    # w2 = ((C[0] - B[0]) * (Y - B[1]) - (C[1] - B[1]) * (X - B[0]))
+    # w3 = ((A[0] - C[0]) * (Y - C[1]) - (A[1] - C[1]) * (X - C[0]))
 
     if area > 0:
         inside = (w1 >= 0) & (w2 >= 0) & (w3 >= 0)
@@ -214,7 +212,7 @@ def main():
 
         pointsTriangle = []
         randerTriangle = []
-        depth_map = np.full((HEIGHT, WIDTH), np.inf)
+        depth_map = np.full((HEIGHT, WIDTH), np.inf, dtype=np.float32)
         image = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
 
 
@@ -229,16 +227,17 @@ def main():
                 temp_points.append(point)
 
             divide(pointsTriangle, type, temp_points, color)
-            # points.append(temp_points)
-
         
         Back_Face_Culling(randerTriangle, pointsTriangle)
-        
+
+        time1 = time.time()
 
         # 渲染
         for triangle in randerTriangle:
             rander(image, triangle, camera["f"], depth_map)
 
+        time2 = time.time()
+        
         cv2.putText(
             image,
             str(int(FPS)),          # 要显示的文字
@@ -255,6 +254,8 @@ def main():
         )
         
         cv2.imshow("3D Renderer", display_image)
+
+        time3 = time.time()
 
         key = cv2.waitKey(1)
         if key == 27:  # ESC
@@ -281,10 +282,18 @@ def main():
             camera["rotation"][0] += 0.05
 
         end_time = time.time()
-        FPS = 1 / max(end_time - start_time, 0.000001)
-        print("fps:", FPS)
-        print("pos:", camera["pos"])
-        print("rotation:", camera["rotation"])
+
+        total_time = (end_time - start_time)
+        if(total_time > 0):
+            print("part1:\t", (time1 - start_time) / total_time)
+            print("rander:\t", (time2 - time1) / total_time)
+            print("cv:\t", (time3 - time2) / total_time)
+            print("key:\t", (end_time - time3) / total_time)
+            FPS = 1 / total_time
+            print("fps:", FPS)
+        
+        # print("pos:", camera["pos"])
+        # print("rotation:", camera["rotation"])
 
         
 
