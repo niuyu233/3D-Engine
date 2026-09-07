@@ -2,8 +2,10 @@ import numpy as np
 import cv2
 import time
 
-WIDTH = 120
-HEIGHT = 80
+# WIDTH = int(640 / 4)
+# HEIGHT = int(480 / 4)
+WIDTH = 640
+HEIGHT = 480
 
 map = [
     {
@@ -18,7 +20,7 @@ map = [
         "pos" : np.array([100, 0, 0]),
         "size" : np.array([50, 30, 20]),
         "rotation" : np.array([0, 0, 0]),
-        "color" : [0, 255, 0]
+        "color" : [0, 0, 255]
     }
 ]
 
@@ -37,15 +39,15 @@ modelPoints = {
 
 triangle = {
     "cube" : np.array([
-        [0, 1, 3],
-        [1, 2, 3],
+        [0, 3, 1],
+        [3, 2, 1],
         [0, 1, 4],
-        [1, 4, 5],
+        [1, 5, 4],
         [1, 2, 5],
-        [2, 5, 6],
+        [2, 6, 5],
         [2, 3, 6],
-        [3, 6, 7],
-        [0, 3, 7],
+        [3, 7, 6],
+        [3, 0, 7],
         [0, 4, 7],
         [4, 5, 6],
         [4, 6, 7],
@@ -108,10 +110,21 @@ def mapping(point, f):
     return pt
 
 def cross(A, B, P):
-    # AB = B - A
-    # AP = P - A
-    # return (AB[0] * AP[1]) - (AB[1] * AP[0])
     return ((B[0] - A[0]) * (P[1] - A[1])) - ((B[1] - A[1]) * (P[0] - A[0]))
+
+
+def Back_Face_Culling(randerTriangle, pointsTriangle):
+    for Triangle in pointsTriangle:
+        A = Triangle["pos"][0]
+        B = Triangle["pos"][1]
+        C = Triangle["pos"][2]
+
+        N = np.cross(B - A, C - A)
+        if np.dot(N, -A) < 0:
+            randerTriangle.append(Triangle)
+
+
+
 
 
 def rander(image, triangle, f, depth_map):
@@ -125,10 +138,8 @@ def rander(image, triangle, f, depth_map):
     B = pt2["pos"].astype(int)
     C = pt3["pos"].astype(int)
 
-    # BA = pt1["pos"] - pt2["pos"]
-    # CB = pt2["pos"] - pt3["pos"]
-    # AC = pt3["pos"] - pt1["pos"]
 
+    # 矩形范围
     MaxX = min(max(A[0], B[0], C[0]), WIDTH)
     MinX = max(min(A[0], B[0], C[0]), 0)
     MaxY = min(max(A[1], B[1], C[1]), HEIGHT)
@@ -136,33 +147,55 @@ def rander(image, triangle, f, depth_map):
     
     
     
-    # print(MaxX, MaxY)
-
-    for i in range(MinX, MaxX):
-        for j in range(MinY, MaxY):
-            w1 = cross(A, B, [i, j])
-            w2 = cross(B, C, [i, j])
-            w3 = cross(C, A, [i, j])
-            if (w1 >= 0 and w2 >= 0 and w3 >= 0) or (w1 <= 0 and w2 <= 0 and w3 <= 0):
-                temp = w1 + w2 + w3
-                w1 = w1 / temp
-                w2 = w2 / temp
-                w3 = w3 / temp
-                depth = w1 * pt1["depth"] + w2 * pt2["depth"] + w3 * pt3["depth"]
-                
-                if(depth_map[j][i] > depth):
-                    
-                    image[j, i] = (color)
-                    depth_map[j][i] = depth
-                
-            
-
-
     
+    
+    area = cross(A, B, C)
+    if(area == 0):
+        return
 
-    # cv2.line(image, A, B, (0, 255, 0), 1)
-    # cv2.line(image, A, C, (0, 255, 0), 1)
-    # cv2.line(image, B, C, (0, 255, 0), 1)
+    xs = np.arange(MinX, MaxX)
+    xs_A0 = (xs - A[0])
+    xs_B0 = (xs - B[0])
+    xs_C0 = (xs - C[0])
+
+    ys = np.arange(MinY, MaxY)
+    ys_A1 = (ys - A[1])
+    ys_B1 = (ys - B[1])
+    ys_C1 = (ys - C[1])
+
+
+
+    # 计算三个edge function
+    w1 = ((B[0] - A[0]) * ys_A1[:, None] - (B[1] - A[1]) * xs_A0[None,:])
+    w2 = ((C[0] - B[0]) * ys_B1[:, None] - (C[1] - B[1]) * xs_B0[None,:])
+    w3 = ((A[0] - C[0]) * ys_C1[:, None] - (A[1] - C[1]) * xs_C0[None,:])
+
+
+    if area > 0:
+        inside = (w1 >= 0) & (w2 >= 0) & (w3 >= 0)
+    else:
+        inside = (w1 <= 0) & (w2 <= 0) & (w3 <= 0)
+    
+    if not np.any(inside):
+        return
+
+    # 重心坐标
+    alpha = w1 / area
+    beta  = w2 / area
+    gamma = w3 / area
+
+    # 这个三角形的四边形的深度图
+    depth = (alpha * pt1["depth"] + beta * pt2["depth"] + gamma * pt3["depth"])
+
+    depth_part = depth_map[MinY:MaxY, MinX:MaxX]
+    mask = inside & (depth < depth_part)
+    depth_part[mask] = depth[mask]
+    image_part = image[MinY:MaxY, MinX:MaxX]
+    image_part[mask] = color
+
+    cv2.line(image, A, B, (0, 255, 0), 1)
+    cv2.line(image, A, C, (0, 255, 0), 1)
+    cv2.line(image, B, C, (0, 255, 0), 1)
 
     # cv2.circle(image, A, 5, (255, 255, 255), -1)
     # cv2.circle(image, B, 5, (255, 255, 255), -1)
@@ -170,16 +203,17 @@ def rander(image, triangle, f, depth_map):
 
 
 def main():
-
+    FPS = 0
     camera = {
-        "pos" : np.array([0, 0, -100]),
-        "rotation" : np.array([0.0, 0.0, 0.0]),
-        "f" : 60 #320
+        "pos" : np.array([-11, 12, 9]),
+        "rotation" : np.array([ 0.0, -1.5, 0.0]),
+        "f" : 320
     }
     while(True):
         start_time = time.time()
 
         pointsTriangle = []
+        randerTriangle = []
         depth_map = np.full((HEIGHT, WIDTH), np.inf)
         image = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
 
@@ -197,18 +231,29 @@ def main():
             divide(pointsTriangle, type, temp_points, color)
             # points.append(temp_points)
 
+        
+        Back_Face_Culling(randerTriangle, pointsTriangle)
+        
 
         # 渲染
-        for triangle in pointsTriangle:
+        for triangle in randerTriangle:
             rander(image, triangle, camera["f"], depth_map)
 
-
+        cv2.putText(
+            image,
+            str(int(FPS)),          # 要显示的文字
+            (0, 12),               # 左下角坐标
+            cv2.FONT_HERSHEY_SIMPLEX,# 字体
+            0.5,                     # 字体大小
+            (255, 255, 0),             # BGR颜色：绿色
+            1                       # 线宽
+        )
         display_image = cv2.resize(
             image,
-            (120 * 5, 80 * 5),
+            (640, 480),
             interpolation=cv2.INTER_NEAREST
         )
-                
+        
         cv2.imshow("3D Renderer", display_image)
 
         key = cv2.waitKey(1)
@@ -237,7 +282,9 @@ def main():
 
         end_time = time.time()
         FPS = 1 / max(end_time - start_time, 0.000001)
-        print("FPS", FPS)
+        print("fps:", FPS)
+        print("pos:", camera["pos"])
+        print("rotation:", camera["rotation"])
 
         
 
