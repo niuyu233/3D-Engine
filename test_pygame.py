@@ -11,6 +11,7 @@ HEIGHT = 480
 map = [
     {
         "type" : "cube",
+        "show" : "explicit",
         "pos" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
         "size" : np.array([50, 30, 20], dtype=np.float32),
         "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
@@ -18,6 +19,7 @@ map = [
     },
     {
         "type" : "cube",
+        "show" : "explicit",
         "pos" : np.array([100.0, 0.0, 0.0], dtype=np.float32),
         "size" : np.array([50, 30, 20], dtype=np.float32),
         "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
@@ -25,6 +27,7 @@ map = [
     },
     {
         "type" : "cube",
+        "show" : "explicit",
         "pos" : np.array([200.0, 0.0, 0.0], dtype=np.float32),
         "size" : np.array([50, 30, 20], dtype=np.float32),
         "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
@@ -32,39 +35,13 @@ map = [
     },
     {
         "type" : "cube",
+        "show" : "explicit",
         "pos" : np.array([0.0, 0.0, 40.0], dtype=np.float32),
         "size" : np.array([50, 30, 20], dtype=np.float32),
         "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
         "color" : [0, 255, 255]
-    },
-    {
-        "type" : "cube",
-        "pos" : np.array([0.0, 0.0, 80.0], dtype=np.float32),
-        "size" : np.array([50, 30, 20], dtype=np.float32),
-        "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
-        "color" : [255, 0, 255]
-    },
-    {
-        "type" : "cube",
-        "pos" : np.array([0.0, 0.0, 120.0], dtype=np.float32),
-        "size" : np.array([50, 30, 20], dtype=np.float32),
-        "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
-        "color" : [255, 255, 0]
-    },
-    {
-        "type" : "cube",
-        "pos" : np.array([0.0, 60.0, 0.0], dtype=np.float32),
-        "size" : np.array([50, 30, 20], dtype=np.float32),
-        "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
-        "color" : [0, 128, 128]
-    },
-    {
-        "type" : "cube",
-        "pos" : np.array([0.0, 120.0, 0.0], dtype=np.float32),
-        "size" : np.array([50, 30, 20], dtype=np.float32),
-        "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
-        "color" : [128, 0, 128]
     }
+
 ]
 
 modelPoints = {
@@ -126,11 +103,8 @@ def get_rotation_matrix(rotation):
 # 世界坐标-摄像头坐标
 def camera_convert(point, camera, R):
     point -= camera["pos"]
-    point = R @ point
-
+    point = (R @ point.T).T
     return point
-
-
 
 # 拆分三角形(摄像头坐标)
 def divide(pointsTriangle, type, points, color):
@@ -176,11 +150,14 @@ def map_to_camera(pointsTriangle, map, camera, R):
     for model in map:
         type = model["type"]
         color = model["color"]
+        show = model["show"]
         temp_points = []
-        for i in modelPoints[type]:
-            point = model["pos"] + i * model["size"]
-            point = camera_convert(point, camera, R)
-            temp_points.append(point)
+        if show == "explicit":
+            temp_points = model["pos"] + modelPoints[type] * model["size"]
+        elif show == "implicit":
+            temp_points = model["pos"]
+        temp_points = camera_convert(temp_points, camera, R)
+
         divide(pointsTriangle, type, temp_points, color)
 
 def update_camera(camera, keys, RzT, RyT, RxT, dx, dy, FPS):
@@ -208,6 +185,7 @@ def update_camera(camera, keys, RzT, RyT, RxT, dx, dy, FPS):
 
     camera["rotation"][1] -= dx * 0.005
     camera["rotation"][0] += dy * 0.005
+    camera["rotation"][0] = min(max(camera["rotation"][0], -np.pi / 2), np.pi / 2)
 
     # if keys[pygame.K_u]:
     #     camera["rotation"][2] += 0.05 * speed
@@ -247,14 +225,15 @@ def rander(image, triangle, f, depth_map):
     ys_C1 = (ys - C[1])
 
     # X, Y = np.meshgrid(xs, ys)
+    # w1 = ((B[0] - A[0]) * (Y - A[1]) - (B[1] - A[1]) * (X - A[0]))
+    # w2 = ((C[0] - B[0]) * (Y - B[1]) - (C[1] - B[1]) * (X - B[0]))
+    # w3 = ((A[0] - C[0]) * (Y - C[1]) - (A[1] - C[1]) * (X - C[0]))
 
     # 计算三个edge function
     w1 = ((B[0] - A[0]) * ys_A1[None,:] - (B[1] - A[1]) * xs_A0[:, None])
     w2 = ((C[0] - B[0]) * ys_B1[None,:] - (C[1] - B[1]) * xs_B0[:, None])
     w3 = ((A[0] - C[0]) * ys_C1[None,:] - (A[1] - C[1]) * xs_C0[:, None])
-    # w1 = ((B[0] - A[0]) * (Y - A[1]) - (B[1] - A[1]) * (X - A[0]))
-    # w2 = ((C[0] - B[0]) * (Y - B[1]) - (C[1] - B[1]) * (X - B[0]))
-    # w3 = ((A[0] - C[0]) * (Y - C[1]) - (A[1] - C[1]) * (X - C[0]))
+    
 
     if area > 0:
         inside = (w1 >= 0) & (w2 >= 0) & (w3 >= 0)
@@ -265,12 +244,19 @@ def rander(image, triangle, f, depth_map):
         return
 
     # 重心坐标
-    alpha = w1 / area
-    beta  = w2 / area
-    gamma = w3 / area
+    alpha = w2 / area
+    beta  = w3 / area
+    gamma = w1 / area
 
     # 这个三角形的四边形的深度图
     depth = (alpha * pt1["depth"] + beta * pt2["depth"] + gamma * pt3["depth"])
+
+    # inv_depth = (
+    #     alpha / pt1["depth"] +
+    #     beta  / pt2["depth"] +
+    #     gamma / pt3["depth"]
+    # )
+    # depth = 1.0 / inv_depth
 
     depth_part = depth_map[MinX:MaxX, MinY:MaxY]
     mask = inside & (depth < depth_part)

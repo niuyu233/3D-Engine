@@ -1,5 +1,21 @@
 # 3D-Engine
 
+**v0.3.1	--	2026.9.8**
+
+中文版在后面
+
+**Finished**
+
+- Fixed the bug of covering relationship. The problem is mismatching between barycentric coordinates and their corresponding vertices.
+- Use matrix instead of loop in calculating points location.
+
+**完成：**
+
+- 修复遮挡关系的bug，原因在于重心参数w1、w2、w3错位
+- 实现矩阵计算生成图形点，取代原本的循环结构
+
+
+
 **v0.3	--	2026.9.7**
 
 中文版在后面
@@ -13,7 +29,7 @@
 
 **Todo**
 
-- Something wrong with the covering relationship. Seems to happen often in direction Z. 
+- Something wrong with the covering relationship. Seems to happen often in direction Z. (Fixed: mismatch between barycentric coordinates and their corresponding vertices.)
 
 **完成：**
 
