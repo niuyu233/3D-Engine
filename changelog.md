@@ -1,5 +1,19 @@
 # 3D-Engine
 
+**v0.4	--	2026.9.10**
+
+中文版在后面
+
+**Finished**
+
+- Replaced NumPy with PyTorch, increasing FPS from 35–40 to 90–120 at 640×480 resolution under high rendering loads.
+
+**完成：**
+
+- 使用torch取代Numpy，在640*480分辨率以及高渲染压力下，成功实现帧数从35-40提升至90-120
+
+
+
 **v0.3.1	--	2026.9.8**
 
 中文版在后面

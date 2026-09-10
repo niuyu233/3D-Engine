@@ -1,5 +1,5 @@
 import numpy as np
-import cv2
+import torch
 import time
 import pygame
 
@@ -7,39 +7,42 @@ import pygame
 # HEIGHT = int(480 / 4)
 WIDTH = 640
 HEIGHT = 480
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda"
+
 
 map = [
     {
         "type" : "cube",
-        "show" : "explicit",
+        "show" : "implicit",
         "pos" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
         "size" : np.array([50, 30, 20], dtype=np.float32),
         "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
-        "color" : [255, 0, 0]
+        "color" : torch.tensor([255, 0, 0], dtype=torch.uint8, device=device)
     },
     {
         "type" : "cube",
-        "show" : "explicit",
+        "show" : "implicit",
         "pos" : np.array([100.0, 0.0, 0.0], dtype=np.float32),
         "size" : np.array([50, 30, 20], dtype=np.float32),
         "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
-        "color" : [0, 0, 255]
+        "color" : torch.tensor([0, 0, 255], dtype=torch.uint8, device=device)
     },
     {
         "type" : "cube",
-        "show" : "explicit",
+        "show" : "implicit",
         "pos" : np.array([200.0, 0.0, 0.0], dtype=np.float32),
         "size" : np.array([50, 30, 20], dtype=np.float32),
         "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
-        "color" : [0, 255, 0]
+        "color" : torch.tensor([0, 255, 0], dtype=torch.uint8, device=device)
     },
     {
         "type" : "cube",
-        "show" : "explicit",
+        "show" : "implicit",
         "pos" : np.array([0.0, 0.0, 40.0], dtype=np.float32),
         "size" : np.array([50, 30, 20], dtype=np.float32),
         "rotation" : np.array([0.0, 0.0, 0.0], dtype=np.float32),
-        "color" : [0, 255, 255]
+        "color" : torch.tensor([0, 255, 255], dtype=torch.uint8, device=device)
     }
 
 ]
@@ -152,9 +155,9 @@ def map_to_camera(pointsTriangle, map, camera, R):
         color = model["color"]
         show = model["show"]
         temp_points = []
-        if show == "explicit":
+        if show == "implicit":
             temp_points = model["pos"] + modelPoints[type] * model["size"]
-        elif show == "implicit":
+        elif show == "explicit":
             temp_points = model["pos"]
         temp_points = camera_convert(temp_points, camera, R)
 
@@ -210,16 +213,23 @@ def rander(image, triangle, f, depth_map):
     MaxY = min(max(A[1], B[1], C[1]), HEIGHT)
     MinY = max(min(A[1], B[1], C[1]), 0)
 
+
+    if MinX > MaxX or MinY > MaxY:
+        return
+
+
     area = cross(A, B, C)
     if(area == 0):
         return
 
-    xs = np.arange(MinX, MaxX, dtype=np.int32)
+    # xs = np.arange(MinX, MaxX, dtype=np.int32)
+    xs = torch.arange(MinX, MaxX, dtype=torch.int32, device=device)
     xs_A0 = (xs - A[0])
     xs_B0 = (xs - B[0])
     xs_C0 = (xs - C[0])
 
-    ys = np.arange(MinY, MaxY, dtype=np.int32)
+    # ys = np.arange(MinY, MaxY, dtype=np.int32)
+    ys = torch.arange(MinY, MaxY, dtype=torch.int32, device=device)
     ys_A1 = (ys - A[1])
     ys_B1 = (ys - B[1])
     ys_C1 = (ys - C[1])
@@ -240,7 +250,7 @@ def rander(image, triangle, f, depth_map):
     else:
         inside = (w1 <= 0) & (w2 <= 0) & (w3 <= 0)
     
-    if not np.any(inside):
+    if not torch.any(inside):
         return
 
     # 重心坐标
@@ -299,14 +309,18 @@ def main():
 
         pointsTriangle = []
         randerTriangle = []
-        depth_map = np.full((WIDTH, HEIGHT), np.inf, dtype=np.float32)
-        image = np.zeros((WIDTH, HEIGHT, 3), dtype=np.uint8)
+        # depth_map = np.full((WIDTH, HEIGHT), np.inf, dtype=np.float32)
+        # image = np.zeros((WIDTH, HEIGHT, 3), dtype=np.uint8)
+        depth_map = torch.full((WIDTH, HEIGHT), torch.inf, dtype=torch.float32, device=device)
+        image = torch.zeros((WIDTH, HEIGHT, 3), dtype=torch.uint8, device=device)
 
         Rz, Ry, Rx = get_rotation_matrix(camera["rotation"])
         keys = pygame.key.get_pressed()
         dx, dy = pygame.mouse.get_rel()
         update_camera(camera, keys, Rz.T, Ry.T, Rx.T, dx, dy, FPS)
-        
+
+        time0 = time.time()
+
         map_to_camera(pointsTriangle, map, camera, (Rz @ Rx @ Ry))
         Back_Face_Culling(randerTriangle, pointsTriangle)
 
@@ -321,7 +335,7 @@ def main():
 
         surface = pygame.surfarray.make_surface(
             np.transpose(
-                image,
+                image.cpu().numpy(),
                 (0,1,2)
             )
         )
@@ -335,11 +349,11 @@ def main():
         total_time = max((end_time - start_time), 1e-6)
         
         FPS = 1 / total_time
-        #     print("part1:\t", (time1 - start_time) / total_time)
-        #     print("rander:\t", (time2 - time1) / total_time)
-        #     print("key:\t", (end_time - time3) / total_time)
-        #     
-        #     print("fps:", FPS)
+        print("keys:\t", (time0 - start_time) / total_time)
+        print("trans:\t", (time1 - time0) / total_time)
+        print("rander:\t", (time2 - time1) / total_time)
+        print("show:\t", (end_time - time2) / total_time)
+        print("fps:", FPS)
         
         # print("pos:", camera["pos"])
         # print("rotation:", camera["rotation"])
