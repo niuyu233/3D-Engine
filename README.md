@@ -2,4 +2,8 @@
 
 ## Demo video
 
-![demo](.\videos\demo.gif)
+
+
+<img src=".\videos\demo.gif" alt="demo" style="zoom:80%;" />
+
+1
